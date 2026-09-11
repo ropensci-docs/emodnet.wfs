@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "157b685931aecbe7379b26a7f1fa6378d664e89f",
+    "author": "Maëlle Salmon <maelle.salmon@yahoo.se>",
+    "time": "2026-09-11T10:39:33Z",
+    "files": 164,
+    "merge": false,
+    "message": "test: update fixtures\n"
+  },
+  "repo": "https://github.com/EMODnet/emodnet.wfs",
+  "pkg": "emodnet.wfs",
+  "time": "2026-09-11T14:41:17Z"
+}

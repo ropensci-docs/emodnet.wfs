@@ -1,0 +1,582 @@
+# EQCL feature filtering
+
+So far, we’ve demonstrated using emodnet.wfs to request complete layers.
+
+However, WFS services allows us to be selective with what features are
+returned from the EMODnet servers. For example: using [CQL
+filters](https://docs.geoserver.org/stable/en/user/tutorials/cql/cql_tutorial.html),
+we can send a query including a filtering clause that will be executed
+on the server and return only the subset of the information we request.
+This can make queries a lot faster and reduce the need for filtering
+data after download.
+
+For example, let’s consider the case where we want to include the
+territorial sea boundaries in a habitat map.  
+One way to approach this would be to download the full layer containing
+all the European maritime boundaries from the human activities service
+and then filter the `sf` object returned for features representing
+Territorial Seas.
+
+A more efficient approach would be to use a filter and request only the
+features representing Territorial Seas from the server. Let’s have a
+look at how to do that.
+
+### CQL & ECQL Query languages.
+
+CQL (Common Query Language) is a plain-text language created for the OGC
+Catalog specification. GeoServer has adapted it to be an easy-to-use
+filtering mechanism. GeoServer actually implements a more powerful
+extension called ECQL (Extended CQL), which allows expressing the full
+range of filters that OGC Filter 1.1 can encode. ECQL is accepted in
+many places in GeoServer.
+
+GeoServer supports the use of both CQL and ECQL in WFS requests and
+whenever the documentation refers to CQL, ECQL syntax can be used as
+well.
+
+The examples provided here are only a small subset of filtering
+functionality available through Geoserver. Full references and further
+examples can be found in the following documentation:
+
+- [ECQL
+  Reference](https://docs.geoserver.org/latest/en/user/filter/ecql_reference.html):
+  reference for the syntax of the ECQL language.
+
+- [Filter Function
+  Reference](https://docs.geoserver.org/stable/en/user/filter/function_reference.html):
+  The OGC Filter Encoding specification provides a generic concept of a
+  filter function. A filter function is a named function with any number
+  of arguments, which can be used in a filter expression to perform
+  specific calculations. This provides much richer expressiveness for
+  defining filters.GeoServer provides many different kinds of filter
+  functions, covering a wide range of functionality including
+  mathematics, string formatting, and geometric operations.
+
+- [CQL and ECQL
+  Tutorial](https://docs.geoserver.org/stable/en/user/tutorials/cql/cql_tutorial.html)
+  shows examples of defining filters.
+
+### Initialise EMODnet WFS client
+
+First, let’s load the library and start a new WFS client with
+`emodnet_init_wfs_client`.
+
+``` r
+
+library(emodnet.wfs)
+```
+
+``` r
+
+wfs <- emodnet_init_wfs_client(service = "biology")
+#> ✔ WFS client created successfully
+#> ℹ Service: "https://geo.vliz.be/geoserver/Emodnetbio/wfs"
+#> ℹ Version: "2.0.0"
+```
+
+### Inspecting attributes
+
+To develop filters, we first need information about the attributes we
+can filter on. For example, we might want to know the data type and
+range or distribution of values of each attributes of a given layer.
+
+Let’s look at existing layers.
+
+``` r
+
+emodnet_get_wfs_info(wfs)
+#> # A tibble: 39 × 9
+#> # Rowwise: 
+#>    data_source service_name service_url                     layer_name title abstract class format layer_namespace
+#>    <chr>       <chr>        <chr>                           <chr>      <chr> <chr>    <chr> <chr>  <chr>          
+#>  1 emodnet_wfs biology      https://geo.vliz.be/geoserver/… cti_macro… Comm… "Ocean … WFSF… sf     Emodnetbio     
+#>  2 emodnet_wfs biology      https://geo.vliz.be/geoserver/… mediseh_c… EMOD… "Coral … WFSF… sf     Emodnetbio     
+#>  3 emodnet_wfs biology      https://geo.vliz.be/geoserver/… mediseh_c… EMOD… "Coral … WFSF… sf     Emodnetbio     
+#>  4 emodnet_wfs biology      https://geo.vliz.be/geoserver/… mediseh_c… EMOD… "Cymodo… WFSF… sf     Emodnetbio     
+#>  5 emodnet_wfs biology      https://geo.vliz.be/geoserver/… Species_g… EMOD… "This d… WFSF… sf     Emodnetbio     
+#>  6 emodnet_wfs biology      https://geo.vliz.be/geoserver/… Species_g… EMOD… "This d… WFSF… sf     Emodnetbio     
+#>  7 emodnet_wfs biology      https://geo.vliz.be/geoserver/… Species_g… EMOD… "This d… WFSF… sf     Emodnetbio     
+#>  8 emodnet_wfs biology      https://geo.vliz.be/geoserver/… Species_g… EMOD… "This d… WFSF… sf     Emodnetbio     
+#>  9 emodnet_wfs biology      https://geo.vliz.be/geoserver/… mediseh_h… EMOD… "Haloph… WFSF… sf     Emodnetbio     
+#> 10 emodnet_wfs biology      https://geo.vliz.be/geoserver/… mediseh_m… EMOD… "Maërl … WFSF… sf     Emodnetbio     
+#> # ℹ 29 more rows
+```
+
+#### Layer attribute names
+
+To start, you might want to know the names of a layer’s attributes.
+
+``` r
+
+layer_attributes_get_names(wfs, layer = "mediseh_zostera_m_pnt")
+#> [1] "id"       "country"  "the_geom"
+```
+
+All functions can also be used by providing a service name instead of a
+`wfs` object.
+
+``` r
+
+layer_attributes_get_names(service = "biology", layer = "mediseh_zostera_m_pnt")
+#> ✔ WFS client created successfully
+#> ℹ Service: "https://geo.vliz.be/geoserver/Emodnetbio/wfs"
+#> ℹ Version: "2.0.0"
+#> [1] "id"       "country"  "the_geom"
+```
+
+#### Layer attribute descriptions
+
+The type of filtering you might want to apply will depend on the data
+type of each attribute.
+
+You can inspect attribute descriptions (metadata) for a given layer with
+[`layer_attribute_descriptions()`](https://docs.ropensci.org/emodnet.wfs/reference/layer_attribute_descriptions.md).
+
+``` r
+
+layer_attribute_descriptions(wfs, layer = "mediseh_zostera_m_pnt")
+#>       name      type minOccurs maxOccurs nillable geometry
+#> 1       id   integer         0         1     TRUE    FALSE
+#> 2  country character         0         1     TRUE    FALSE
+#> 3 the_geom     Point         0         1     TRUE     TRUE
+```
+
+#### Layer attribute summaries
+
+You can get summaries of the values of each attribute with
+[`layer_attributes_summarise()`](https://docs.ropensci.org/emodnet.wfs/reference/layer_attributes_summarise.md).
+This function basically runs
+[`summary()`](https://rdrr.io/r/base/summary.html) on the attribute
+columns of the layer.
+
+``` r
+
+layer_attributes_summarise(wfs, layer = "mediseh_zostera_m_pnt")
+#>     gml_id                id      country         
+#>  Length:54          Min.   :0   Length:54         
+#>  Class :character   1st Qu.:0   Class :character  
+#>  Mode  :character   Median :0   Mode  :character  
+#>                     Mean   :0                     
+#>                     3rd Qu.:0                     
+#>                     Max.   :0
+```
+
+#### Inspecting individual layer attributes
+
+You can also inspect individual attributes which, in the case of
+categorical variables, can give more detailed information on the names
+and distribution of categories.
+
+``` r
+
+layer_attribute_inspect(
+  wfs,
+  layer = "mediseh_zostera_m_pnt",
+  attribute = "country"
+)
+#> # A tibble: 7 × 3
+#>   .            n percent
+#>   <chr>    <int>   <dbl>
+#> 1 Croazia      4  0.0741
+#> 2 Francia      1  0.0185
+#> 3 Italia      30  0.556 
+#> 4 Libia        2  0.0370
+#> 5 Slovenia     8  0.148 
+#> 6 Spagna       8  0.148 
+#> 7 Tunisia      1  0.0185
+```
+
+### Layer attributes table
+
+Finally, to enable full inspection and custom processing of attribute
+data, you can download the full set of attributes as a `data.frame`,
+excluding the geometry column. As the geometries are usually the largest
+column, this is much faster than downloading the full layer and can be
+useful in developing attribute filtering rules.
+
+``` r
+
+attr_tbl <- layer_attributes_tbl(wfs, layer = "mediseh_zostera_m_pnt")
+
+attr_tbl
+#> # A tibble: 54 × 3
+#>    gml_id                      id country
+#>    <chr>                    <int> <chr>  
+#>  1 mediseh_zostera_m_pnt.1      0 Spagna 
+#>  2 mediseh_zostera_m_pnt.2      0 Spagna 
+#>  3 mediseh_zostera_m_pnt.3      0 Spagna 
+#>  4 mediseh_zostera_m_pnt.4      0 Spagna 
+#>  5 mediseh_zostera_m_pnt.5      0 Spagna 
+#>  6 mediseh_zostera_m_pnt.6      0 Spagna 
+#>  7 mediseh_zostera_m_pnt.7      0 Spagna 
+#>  8 mediseh_zostera_m_pnt.8      0 Francia
+#>  9 mediseh_zostera_m_pnt.9      0 Italia 
+#> 10 mediseh_zostera_m_pnt.10     0 Italia 
+#> # ℹ 44 more rows
+```
+
+## Filtering by attributes
+
+### Filtering categorical attributes values using text comparisons
+
+Once we know the values of a categorical attribute of a layer, we can
+use them to filter the features returned from our query. For example,
+let’s say we are only interested in results for France. From our
+previous interrogation of the attributes associated with the
+`mediseh_zostera_m_pnt` layer, we have seen that the attribute `country`
+contains the country.
+
+We can use the **name of the attribute** and the **value** we require to
+**construct our eqcl filter** and pass it to our request using the
+`cql_filter` argument.
+
+``` r
+
+emodnet_get_layers(
+  wfs,
+  layers = "mediseh_zostera_m_pnt",
+  cql_filter = "country = 'Francia'"
+)
+#> $mediseh_zostera_m_pnt
+#> Simple feature collection with 1 feature and 3 fields
+#> Geometry type: POINT
+#> Dimension:     XY
+#> Bounding box:  xmin: 4.84864 ymin: 43.37637 xmax: 4.84864 ymax: 43.37637
+#> Geodetic CRS:  WGS 84
+#>                    gml_id id country                 the_geom
+#> 1 mediseh_zostera_m_pnt.8  0 Francia POINT (4.84864 43.37637)
+```
+
+The above shows the most basic text comparisons we can make use the
+equality operator `=`. If we want to match more than one value, we can
+use the operator `IN` instead and provide a list of values to compare
+to. For example, to request both France and Spain, we could use the
+following filter:
+
+``` r
+
+emodnet_get_layers(
+  wfs,
+  layers = "mediseh_zostera_m_pnt",
+  cql_filter = "country IN ('Francia', 'Spagna')"
+)
+#> $mediseh_zostera_m_pnt
+#> Simple feature collection with 9 features and 3 fields
+#> Geometry type: POINT
+#> Dimension:     XY
+#> Bounding box:  xmin: -4.167154 ymin: 36.71226 xmax: 4.84864 ymax: 43.37637
+#> Geodetic CRS:  WGS 84
+#>                     gml_id id country                   the_geom
+#> 1  mediseh_zostera_m_pnt.1  0  Spagna  POINT (-2.61314 36.71681)
+#> 2  mediseh_zostera_m_pnt.2  0  Spagna POINT (-3.846598 36.75127)
+#> 3  mediseh_zostera_m_pnt.3  0  Spagna POINT (-3.957785 36.72266)
+#> 4  mediseh_zostera_m_pnt.4  0  Spagna POINT (-4.039712 36.74217)
+#> 5  mediseh_zostera_m_pnt.5  0  Spagna POINT (-4.100182 36.72331)
+#> 6  mediseh_zostera_m_pnt.6  0  Spagna POINT (-4.167154 36.71226)
+#> 7  mediseh_zostera_m_pnt.7  0  Spagna POINT (-1.268366 37.55796)
+#> 8  mediseh_zostera_m_pnt.8  0 Francia   POINT (4.84864 43.37637)
+#> 9 mediseh_zostera_m_pnt.54  0  Spagna  POINT (3.291868 42.29132)
+```
+
+It is the same as using the `OR` filter:
+
+``` r
+
+emodnet_get_layers(
+  wfs,
+  layers = "mediseh_zostera_m_pnt",
+  cql_filter = "country='Francia' OR country='Spagna'"
+)
+#> $mediseh_zostera_m_pnt
+#> Simple feature collection with 9 features and 3 fields
+#> Geometry type: POINT
+#> Dimension:     XY
+#> Bounding box:  xmin: -4.167154 ymin: 36.71226 xmax: 4.84864 ymax: 43.37637
+#> Geodetic CRS:  WGS 84
+#>                     gml_id id country                   the_geom
+#> 1  mediseh_zostera_m_pnt.1  0  Spagna  POINT (-2.61314 36.71681)
+#> 2  mediseh_zostera_m_pnt.2  0  Spagna POINT (-3.846598 36.75127)
+#> 3  mediseh_zostera_m_pnt.3  0  Spagna POINT (-3.957785 36.72266)
+#> 4  mediseh_zostera_m_pnt.4  0  Spagna POINT (-4.039712 36.74217)
+#> 5  mediseh_zostera_m_pnt.5  0  Spagna POINT (-4.100182 36.72331)
+#> 6  mediseh_zostera_m_pnt.6  0  Spagna POINT (-4.167154 36.71226)
+#> 7  mediseh_zostera_m_pnt.7  0  Spagna POINT (-1.268366 37.55796)
+#> 8  mediseh_zostera_m_pnt.8  0 Francia   POINT (4.84864 43.37637)
+#> 9 mediseh_zostera_m_pnt.54  0  Spagna  POINT (3.291868 42.29132)
+```
+
+Other text comparisons include text pattern matching using operator
+`LIKE`. For example, to request maritime boundaries for countries
+starting with an `S`, we can use the following filter:
+
+``` r
+
+emodnet_get_layers(
+  wfs = wfs,
+  layers = "mediseh_zostera_m_pnt",
+  cql_filter = "country LIKE 'S%'",
+  simplify = TRUE
+)
+#> Simple feature collection with 16 features and 3 fields
+#> Geometry type: POINT
+#> Dimension:     XY
+#> Bounding box:  xmin: -4.167154 ymin: 36.71226 xmax: 13.73725 ymax: 45.58252
+#> Geodetic CRS:  WGS 84
+#> First 10 features:
+#>                      gml_id id  country                   the_geom
+#> 1   mediseh_zostera_m_pnt.1  0   Spagna  POINT (-2.61314 36.71681)
+#> 2   mediseh_zostera_m_pnt.2  0   Spagna POINT (-3.846598 36.75127)
+#> 3   mediseh_zostera_m_pnt.3  0   Spagna POINT (-3.957785 36.72266)
+#> 4   mediseh_zostera_m_pnt.4  0   Spagna POINT (-4.039712 36.74217)
+#> 5   mediseh_zostera_m_pnt.5  0   Spagna POINT (-4.100182 36.72331)
+#> 6   mediseh_zostera_m_pnt.6  0   Spagna POINT (-4.167154 36.71226)
+#> 7   mediseh_zostera_m_pnt.7  0   Spagna POINT (-1.268366 37.55796)
+#> 8  mediseh_zostera_m_pnt.39  0 Slovenia  POINT (13.73725 45.56948)
+#> 9  mediseh_zostera_m_pnt.40  0 Slovenia  POINT (13.70701 45.58252)
+#> 10 mediseh_zostera_m_pnt.41  0 Slovenia  POINT (13.71894 45.54535)
+```
+
+CQL/ECQL filters can also include any of the [filter
+functions](https://docs.geoserver.org/stable/en/user/filter/function_reference.html#filter-function-reference)
+available in GeoServer, including multiple [string
+functions](https://docs.geoserver.org/stable/en/user/filter/function_reference.html#string-functions)
+which greatly increases the power of CQL expressions.
+
+For example, we can request countries that contain `l` anywhere,
+including the first letter. To make the request case independent, we can
+turn `country` names to lowercase and then use a `like` comparison to a
+lowercase `l`:
+
+``` r
+
+emodnet_get_layers(
+  wfs = wfs,
+  layers = "mediseh_zostera_m_pnt",
+  cql_filter = "strToLowerCase(country) LIKE '%l%'",
+  simplify = TRUE
+)
+#> Simple feature collection with 40 features and 3 fields
+#> Geometry type: POINT
+#> Dimension:     XY
+#> Bounding box:  xmin: 11.71682 ymin: 33.07783 xmax: 14.4714 ymax: 45.72451
+#> Geodetic CRS:  WGS 84
+#> First 10 features:
+#>                      gml_id id country                  the_geom
+#> 1   mediseh_zostera_m_pnt.9  0  Italia POINT (13.71831 45.70017)
+#> 2  mediseh_zostera_m_pnt.10  0  Italia POINT (13.16378 45.72451)
+#> 3  mediseh_zostera_m_pnt.11  0  Italia POINT (13.35982 45.70508)
+#> 4  mediseh_zostera_m_pnt.12  0  Italia POINT (12.26722 45.25975)
+#> 5  mediseh_zostera_m_pnt.13  0  Italia   POINT (12.31285 45.362)
+#> 6  mediseh_zostera_m_pnt.14  0  Italia POINT (12.53509 45.53269)
+#> 7  mediseh_zostera_m_pnt.15  0  Italia  POINT (12.48269 45.5065)
+#> 8  mediseh_zostera_m_pnt.16  0  Italia POINT (12.77334 43.96751)
+#> 9  mediseh_zostera_m_pnt.17  0  Italia POINT (13.62604 43.50809)
+#> 10 mediseh_zostera_m_pnt.18  0  Italia POINT (13.46398 43.60892)
+```
+
+#### For more details on string functions, consult the [full list](https://docs.geoserver.org/stable/en/user/filter/function_reference.html#string-functions) in the geoserver function reference user documentation.\*\*
+
+### Filtering numeric variables
+
+A number of additional **comparison operators, such as =, `<>`, `>`,
+`>=`, `<`, `<=`** , arithmetic operators **`+`, `-`, `*`, `/`** as well
+as
+**[comparison](https://docs.geoserver.org/stable/en/user/filter/function_reference.html#comparison-functions)
+and
+[math](https://docs.geoserver.org/stable/en/user/filter/function_reference.html#comparison-functions)
+functions** can be used for filtering numeric variables.
+
+This time we’ll use the **mediseh_posidonia_nodata**.
+
+We can inspect again, using some of our interrogative functions to get
+information on layer attributes.
+
+``` r
+
+layer_attributes_get_names(
+  wfs,
+  layer = "mediseh_posidonia_nodata"
+)
+#> [1] "id"       "km"       "the_geom"
+
+layer_attribute_inspect(
+  wfs,
+  layer = "mediseh_posidonia_nodata",
+  attribute = "km"
+)
+#>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+#>   0.2371   6.0305  16.6190  40.1771  42.8958 472.9613
+```
+
+We can see that values range between `0.23` and `~473` with a mean of
+`~40`.
+
+Let’s say we are interested in values greater than `400`. We can use the
+operator `>` to create our filter:
+
+``` r
+
+emodnet_get_layers(
+  wfs = wfs,
+  layers = "mediseh_posidonia_nodata",
+  cql_filter = "km > 400",
+  simplify = TRUE
+)
+#> Simple feature collection with 4 features and 3 fields
+#> Geometry type: MULTICURVE
+#> Dimension:     XY
+#> Bounding box:  xmin: -1.572609 ymin: 35.24538 xmax: 28.33243 ymax: 38.68017
+#> Geodetic CRS:  WGS 84
+#>                         gml_id id       km                       the_geom
+#> 1   mediseh_posidonia_nodata.8  0 456.3759 MULTICURVE (LINESTRING (2.3...
+#> 2 mediseh_posidonia_nodata.227  0 464.6573 MULTICURVE (LINESTRING (26....
+#> 3 mediseh_posidonia_nodata.228  0 472.9613 MULTICURVE (LINESTRING (26....
+#> 4 mediseh_posidonia_nodata.229  0 463.8207 MULTICURVE (LINESTRING (27....
+```
+
+To request a range we can use filter functions `between` and `and`.
+
+``` r
+
+emodnet_get_layers(
+  wfs = wfs,
+  layers = "mediseh_posidonia_nodata",
+  cql_filter = "km between 40 and 400",
+  simplify = TRUE
+)
+#> Simple feature collection with 120 features and 3 fields
+#> Geometry type: MULTICURVE
+#> Dimension:     XY
+#> Bounding box:  xmin: -2.1798 ymin: 30.26623 xmax: 34.59127 ymax: 45.35511
+#> Geodetic CRS:  WGS 84
+#> First 10 features:
+#>                         gml_id id        km                       the_geom
+#> 1   mediseh_posidonia_nodata.1  0 291.50323 MULTICURVE (LINESTRING (27....
+#> 2   mediseh_posidonia_nodata.2  0  75.37950 MULTICURVE (LINESTRING (23....
+#> 3   mediseh_posidonia_nodata.4  0 110.34480 MULTICURVE (LINESTRING (19....
+#> 4  mediseh_posidonia_nodata.13  0  66.99746 MULTICURVE (LINESTRING (9.1...
+#> 5   mediseh_posidonia_nodata.5  0 222.44651 MULTICURVE (LINESTRING (8.6...
+#> 6   mediseh_posidonia_nodata.6  0  58.72822 MULTICURVE (LINESTRING (6.8...
+#> 7   mediseh_posidonia_nodata.7  0 192.50519 MULTICURVE (LINESTRING (6.4...
+#> 8  mediseh_posidonia_nodata.10  0  65.74354 MULTICURVE (LINESTRING (-1....
+#> 9  mediseh_posidonia_nodata.11  0 138.68819 MULTICURVE (LINESTRING (4.8...
+#> 10 mediseh_posidonia_nodata.17  0 184.05959 MULTICURVE (LINESTRING (10....
+```
+
+### Using `OR` and `AND` statements
+
+Filter conditions can also be a logical combination of other conditions
+using `AND`, `OR` or `NOT`. We showed previously how we could use a list
+of potential values to match an attribute to. This could also be
+achieved using an `OR` statement.
+
+For example, the following query returns features where country is
+either `Baltic Sea` or `Bulgaria`.
+
+``` r
+
+wfs <- emodnet_init_wfs_client(service = "geology_seabed_substrate_maps")
+emodnet_get_layers(
+  wfs = wfs,
+  layers = "seabed_substrate_1m",
+  cql_filter = "country='Baltic Sea' OR country='Bulgaria'",
+  simplify = TRUE
+)
+```
+
+Let’s say we also want to restrict the features returned those having
+`shape_length` \> 1. We can include an additional condition which must
+be met using an `AND` statement.
+
+``` r
+
+filter_sf1 <- emodnet_get_layers(
+  wfs = wfs,
+  layers = "seabed_substrate_1m",
+  cql_filter = "country='Baltic Sea' OR country='Bulgaria' AND shape_length>1",
+  simplify = TRUE
+)
+filter_sf1
+```
+
+The query returns features where `country` is `Baltic Sea` or `Bulgaria`
+but we can see that the minimum value is below the minimum we set with
+our filter. That’s because the `AND` filter is added only to the
+`country='Bulgaria'`, so while only features with `shape_length > 1` are
+returned where `country` is also `Bulgaria`, the filter is not applied
+to `shape_length` where `country` is `Baltic Sea`.
+
+``` r
+
+unique(filter_sf1$country)
+
+min(filter_sf1$shape_length)
+```
+
+To add the `AND` filter to both `OR` filters, we can use a parenthesis:
+
+``` r
+
+filter_sf2 <- emodnet_get_layers(
+  wfs = wfs,
+  layers = "seabed_substrate_1m",
+  cql_filter = "(country='Baltic Sea' OR country='Bulgaria') AND shape_length>1",
+  simplify = TRUE
+)
+```
+
+Now the minimum value is indeed above 1. However, we only get features
+where `country` is `'Bulgaria'`. That’s because the single `Baltic Sea`
+feature had a `shape_length` value smaller than 1 so is filtered out.
+
+``` r
+
+min(filter_sf2$shape_length)
+unique(filter_sf2$country)
+```
+
+Finally filtering for `shape_length < 1` returns features with
+`shape_length` values smaller than 1 for both `country` values.
+
+``` r
+
+filter_sf3 <- emodnet_get_layers(
+  wfs = wfs,
+  layers = "seabed_substrate_1m",
+  cql_filter = "(country='Baltic Sea' OR country='Bulgaria') AND shape_length<1",
+  simplify = TRUE
+)
+```
+
+``` r
+
+max(filter_sf3$shape_length)
+unique(filter_sf3$country)
+```
+
+### Advanced use
+
+There is more that can be accomplished by using the EMODnet WFS services
+than downloading data. The `emodnet.wfs` package is built on top of the
+[ows4R](https://github.com/eblondel/ows4R) library, meaning that all the
+functionalities of this package are available for emodnet.wfs. The ows4R
+returns a special type of R object called R6. You can learn more in
+Hadley Wickham’s chapter on R6 Objects of the [Advance R
+book](https://adv-r.hadley.nz/r6.html).
+
+For instance: it is not efficient to read a large dataset into R just
+and later subset part of it. This requires longer waiting times and more
+bandwidth usage, and in very large datasets it would simply not be
+possible. For instance, all the occurrences data available through the
+EMODnet Biology portal are stored in [one
+table](https://www.emodnet-biology.eu/emodnet-data-format): These are
+approximately 30 millions rows! In this case, we suggest you access the
+EMODnet Biology occurrence data through the [EMODnet
+geoviewer](https://emodnet.ec.europa.eu/geoviewer/?layers=6d617269-6e65-696e-666f-000000001510:1:1&basemap=ebwbl&active=12639&bounds=-177.7018404006958,-87.83122047893704,204.7018404006958,100.83122047893704&filters=&projection=EPSG:3857)
+or the [eurobis R package](https://github.com/lifewatch/eurobis/). This
+package retrieves occurrences in batches, allowing for large datasets,
+and uses `viewParams`, a [geoserver-specific filtering
+feature](https://docs.geoserver.org/main/en/user/data/database/sqlview.html)
+for faster requests compared to standard OGC or CQL filters. In
+addition, one of these specific filters allow to query on species traits
+such as functional groups.
