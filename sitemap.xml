@@ -1,0 +1,26 @@
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/404.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/CONTRIBUTING.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/LICENSE-text.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/LICENSE.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/articles/ecql_filtering.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/articles/emodnet.wfs.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/articles/index.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/articles/request-params.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/authors.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/index.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/news/index.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/emodnet.wfs-package.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/emodnet_get_layers.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/emodnet_get_wfs_info.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/emodnet_init_wfs_client.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/emodnet_wfs.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/index.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/layer_attribute_descriptions.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/layer_attribute_inspect.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/layer_attributes_get_names.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/layer_attributes_summarise.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/layer_attributes_tbl.html</loc></url>
+<url><loc>https://docs.ropensci.org/emodnet.wfs/reference/should_run_example.html</loc></url>
+</urlset>
+

@@ -1,0 +1,4 @@
+# License
+
+    YEAR: 2025
+    COPYRIGHT HOLDER: European Marine Observation Data Network (EMODnet) Biology project
